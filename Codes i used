@@ -1,0 +1,293 @@
+1. App.py
+from flask import Flask, jsonify, render_template, request, redirect, session
+import sqlite3
+
+app = Flask(__name__)
+app.secret_key = "secret123"
+
+
+USER = {"username": "admin", "password": "admin"}
+
+def detect_threat(attack):
+    if attack == "DoS":
+        return "High"
+    elif attack == "Probe":
+        return "Medium"
+    else:
+        return "Low"
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
+
+        if username == USER["username"] and password == USER["password"]:
+            session["logged_in"] = True
+            return redirect("/")
+    
+    return render_template("login.html")
+
+@app.route("/")
+def home():
+    if not session.get("logged_in"):
+        return redirect("/login")
+    return render_template("index.html")
+
+
+@app.route("/logs")
+def get_logs():
+    conn = sqlite3.connect("siem.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT time, ip, attack FROM logs ORDER BY id DESC LIMIT 50")
+    rows = cursor.fetchall()
+
+    data = []
+    for row in rows:
+        data.append({
+            "time": row[0],
+            "ip": row[1],
+            "attack": row[2],
+            "severity": detect_threat(row[2])
+        })
+
+    conn.close()
+    return jsonify(data)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect("/login")
+
+if __name__ == "__main__":
+    app.run(debug=True)
+
+2. Log_generator.py
+import random
+import sqlite3
+import time
+from datetime import datetime
+
+ATTACKS = ["Normal", "DoS", "Probe", "R2L", "U2R"]
+
+def generate_log():
+    return {
+        "time": str(datetime.now()),
+        "ip": f"192.168.1.{random.randint(1,255)}",
+        "attack": random.choice(ATTACKS)
+    }
+
+def save_log(log):
+    conn = sqlite3.connect("siem.db")
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "INSERT INTO logs (time, ip, attack) VALUES (?, ?, ?)",
+        (log["time"], log["ip"], log["attack"])
+    )
+
+    conn.commit()
+    conn.close()
+
+while True:
+    log = generate_log()
+    save_log(log)
+    print("Generated:", log)
+    time.sleep(2)
+
+3. logs.json
+[
+    {
+        "time": "2026-04-20 22:35:01.545885",
+        "ip": "192.168.1.31",
+        "attack": "Probe"
+    },
+    {
+        "time": "2026-04-20 22:35:03.548567",
+        "ip": "192.168.1.18",
+        "attack": "U2R"
+    },
+    {
+        "time": "2026-04-20 22:35:05.550602",
+        "ip": "192.168.1.213",
+        "attack": "Probe"
+    },
+    {
+        "time": "2026-04-20 22:35:07.552917",
+        "ip": "192.168.1.110",
+        "attack": "R2L"
+    },
+    {
+        "time": "2026-04-20 22:35:09.555066",
+        "ip": "192.168.1.228",
+        "attack": "Normal"
+    },
+    {
+        "time": "2026-04-20 22:35:11.557989",
+        "ip": "192.168.1.204",
+        "attack": "R2L"
+    },
+    {
+        "time": "2026-04-20 22:35:13.561002",
+        "ip": "192.168.1.106",
+        "attack": "Probe"
+    },
+    {
+        "time": "2026-04-20 22:35:15.562648",
+        "ip": "192.168.1.136",
+        "attack": "R2L"
+    },
+    {
+        "time": "2026-04-20 22:35:17.566662",
+        "ip": "192.168.1.194",
+        "attack": "Probe"
+    },
+    {
+        "time": "2026-04-20 22:35:19.568460",
+        "ip": "192.168.1.27",
+        "attack": "U2R"
+    },
+    {
+        "time": "2026-04-20 22:35:21.571151",
+        "ip": "192.168.1.88",
+        "attack": "DoS"
+    },
+    {
+        "time": "2026-04-20 22:35:23.575777",
+        "ip": "192.168.1.69",
+        "attack": "Probe"
+    },
+    {
+        "time": "2026-04-20 22:35:25.579671",
+        "ip": "192.168.1.162",
+        "attack": "R2L"
+    },
+    {
+        "time": "2026-04-20 22:35:27.581616",
+        "ip": "192.168.1.20",
+        "attack": "U2R"
+    },
+    {
+        "time": "2026-04-20 22:35:29.584993",
+        "ip": "192.168.1.10",
+        "attack": "DoS"
+    },
+    {
+        "time": "2026-04-20 22:35:31.594806",
+        "ip": "192.168.1.177",
+        "attack": "Normal"
+    },
+    {
+        "time": "2026-04-20 22:35:33.598855",
+        "ip": "192.168.1.248",
+        "attack": "R2L"
+    },
+    {
+        "time": "2026-04-20 22:35:35.601823",
+        "ip": "192.168.1.249",
+        "attack": "U2R"
+    },
+    {
+        "time": "2026-04-20 22:35:37.612356",
+        "ip": "192.168.1.87",
+        "attack": "U2R"
+    },
+    {
+        "time": "2026-04-20 22:35:39.616796",
+        "ip": "192.168.1.97",
+        "attack": "U2R"
+    }
+]
+
+4. index.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SIEM Dashboard</title>
+
+    <script>
+        function getColor(severity) {
+            if (severity === "High") return "red";
+            if (severity === "Medium") return "orange";
+            return "lime";
+        }
+
+        async function loadLogs() {
+            const res = await fetch("/logs");
+            const data = await res.json();
+
+            let table = "";
+            data.forEach(log => {
+                table += `<tr style="color:${getColor(log.severity)}">
+                    <td>${log.time}</td>
+                    <td>${log.ip}</td>
+                    <td>${log.attack}</td>
+                    <td>${log.severity}</td>
+                </tr>`;
+            });
+
+            document.getElementById("logs").innerHTML = table;
+        }
+
+        setInterval(loadLogs, 2000);
+    </script>
+</head>
+
+<body style="background:black; color:white; font-family:Arial;">
+
+    <h1> SIEM Dashboard</h1>
+    <a href="/logout" style="color:red;">Logout</a>
+
+    <table border="1" width="100%">
+        <tr>
+            <th>Time</th>
+            <th>IP</th>
+            <th>Attack</th>
+            <th>Severity</th>
+        </tr>
+        <tbody id="logs"></tbody>
+    </table>
+
+</body>
+</html>
+
+5. init_db.py
+import sqlite3
+
+conn = sqlite3.connect("siem.db")
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    time TEXT,
+    ip TEXT,
+    attack TEXT
+)
+""")
+
+conn.commit()
+conn.close()
+
+print("Database created successfully")
+
+6. Login.html
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login - SIEM</title>
+</head>
+<body style="background:black; color:white; text-align:center; margin-top:100px;">
+    <h1>SIEM Login</h1>
+
+    <form method="post">
+        <input name="username" placeholder="Username"><br><br>
+        <input name="password" type="password" placeholder="Password"><br><br>
+        <button type="submit">Login</button>
+    </form>
+
+    <p>Use: admin / admin</p>
+</body>
+</html>
