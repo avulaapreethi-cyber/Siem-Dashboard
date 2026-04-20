@@ -1,0 +1,38 @@
+STEP 1: Create Project Folder (CMD)
+mkdir siem-dashboard 
+cd siem-dashboard
+
+STEP 2: Create Virtual Environment
+python -m venv venv
+venv\Scripts\activate
+
+STEP 3: Install Required Libraries
+pip install flask flask-cors
+
+STEP 4: Create Files
+notepad app.py
+notepad log_generator.py
+notepad logs.json
+mkdir templates
+notepad templates\index.html
+
+STEP 5: Backend Code (app.py)
+
+STEP 6: Log Generator (log_generator.py)
+
+STEP 7: Dashboard UI (index.html)
+
+STEP 8: Run the Project
+Terminal 1 (start logs)
+python log_generator.py
+
+Terminal 2 (start server)
+python app.py
+
+STEP 9: Open Dashboard
+http://127.0.0.1:5000
+
+STEP 10 :
+DATABASE SETUP
+
+
